@@ -91,7 +91,7 @@ namespace Npgsql.Bulk
                         }
                     }
 
-#if DotNet6 || DotNet7 || DotNet8 
+#if DotNet6 || DotNet7 || DotNet8 || DotNet10 
                     var readBack = x.GetStoreGeneratedIndex() >= 0;
 #else
                     var indexes = ((Microsoft.EntityFrameworkCore.Metadata.Internal.Property)x).PropertyIndexes;

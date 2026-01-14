@@ -193,6 +193,16 @@ namespace Npgsql.Bulk
                     {
                         return NpgsqlDbType.Unknown;
                     }
+
+#elif DotNet10
+                    // Allow postgres enum types to be mapped to CLR enums
+                    var mapper = NpgsqlConnection.GlobalTypeMapper;
+                    var userTypeMappings = (ConcurrentDictionary<string, TypeMapping.UserTypeMapping>)
+                        mapper.GetType().GetProperty("UserTypeMappings").GetValue(mapper);
+                    if (userTypeMappings.ContainsKey(info.ColumnType))
+                    {
+                        return NpgsqlDbType.Unknown;
+                    }
 #elif EFCore
                     // Allow postgres enum types to be mapped to CLR enums
                     var clrType = RelationalHelper.GetNpgsqlConnection(context).TypeMapper.Mappings
@@ -232,24 +242,26 @@ namespace Npgsql.Bulk
 
         public static object ReadValue(Type expectedType, NpgsqlDataReader reader, string columnName)
         {
+            var ordinal = reader.GetOrdinal(columnName);
+            if (expectedType == typeof(DateTime))
+                return reader.GetFieldValue<DateTime>(ordinal);
+            if (expectedType == typeof(TimeSpan))
+                return reader.GetFieldValue<TimeSpan>(ordinal);
+            
             var value = reader[columnName];
             if (value == null)
-                return value;
-
+                return null;
+            
             var actual = value.GetType();
             if (value == DBNull.Value)
                 return null;
-            else if (expectedType == actual)
+            if (expectedType == actual)
                 return reader[columnName];
-            else if (actual == typeof(DateTimeOffset) && expectedType == typeof(DateTime))
-                return ((DateTimeOffset)value).DateTime;
-            else if (expectedType.IsEnum && value is int)
-                return Enum.ToObject(expectedType, (int)value);
-            else
-            {
-                var nullableSubtype = Nullable.GetUnderlyingType(expectedType);
-                return Convert.ChangeType(value, nullableSubtype ?? expectedType);
-            }
+            if (expectedType.IsEnum && value is int i)
+                return Enum.ToObject(expectedType, i);
+            
+            var nullableSubtype = Nullable.GetUnderlyingType(expectedType);
+            return Convert.ChangeType(value, nullableSubtype ?? expectedType);
         }
 
         public void Insert<T>(IEnumerable<T> entities)
