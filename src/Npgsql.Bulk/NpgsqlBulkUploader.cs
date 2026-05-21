@@ -25,7 +25,7 @@ namespace Npgsql.Bulk
     public class NpgsqlBulkUploader
     {
         private static readonly ConcurrentDictionary<string, EntityInfo> Cache = new ConcurrentDictionary<string, EntityInfo>();
-        private static readonly Dictionary<string, object> EntityInfoLocks = new Dictionary<string, object>();
+        private static readonly ConcurrentDictionary<string, object> EntityInfoLocks = new ConcurrentDictionary<string, object>();
 
         private readonly DbContext context;
         private readonly bool disableEntitiesTracking;
@@ -1087,21 +1087,11 @@ namespace Npgsql.Bulk
             }
             else
             {
-                object typeLocker;
-                lock (EntityInfoLocks)
-                {
-                    if (!EntityInfoLocks.TryGetValue(key, out typeLocker))
-                    {
-                        EntityInfoLocks[key] = typeLocker = new object();
-                    }
-                }
+                var typeLocker = EntityInfoLocks.GetOrAdd(key, _ => new object());
                 lock (typeLocker)
                 {
-                    info = Cache.GetOrAdd(key, (x) => CreateEntityInfo<T>());
-                    EntityInfoLocks.Remove(key);
+                    return Cache.GetOrAdd(key, _ => CreateEntityInfo<T>());
                 }
-
-                return info;
             }
         }
 
